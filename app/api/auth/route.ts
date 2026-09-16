@@ -1,10 +1,11 @@
+import {allowedEmail} from '@/lib/email-policy';
 import {config,identity,json,mutate,safeOrigin} from '@/lib/server';
 export async function POST(req:Request){
  if(!safeOrigin(req))return json({error:'请求来源无效。'},403);
  try{const b=await req.json() as any;const cfg=config();
  if(b.action==='logout')return new Response('{}',{headers:{'Content-Type':'application/json','Set-Cookie':'club_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0'}});
  if(!cfg.url||!cfg.key)return json({error:'学校邮箱验证码服务尚未配置，请联系组织管理员。'},503);
- const email=String(b.email||'').trim().toLowerCase();if(!/^[^\s@]+@[^\s@]+$/.test(email)||email.split('@')[1]!==cfg.domain)return json({error:'请使用 @'+cfg.domain+' 学校邮箱。'},400);
+ const email=String(b.email||'').trim().toLowerCase();if(!allowedEmail(email,cfg.domain,cfg.admins))return json({error:'请使用 @'+cfg.domain+' 学生邮箱，或已授权的管理员邮箱。'},400);
  if(b.action==='send'){
  const r=await fetch(cfg.url+'/auth/v1/otp',{method:'POST',headers:{apikey:cfg.key,'Content-Type':'application/json'},body:JSON.stringify({email,create_user:true})});
  if(!r.ok)return json({error:r.status===429?'验证码发送过于频繁，请稍后再试。':'验证码暂时无法发送，请稍后重试。'},r.status===429?429:502);return json({ok:true});}
