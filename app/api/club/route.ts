@@ -1,0 +1,5 @@
+import {config,identity,json,mutate,safeOrigin} from '@/lib/server';
+import {applyAction, State} from '@/lib/club';
+function view(s:State,user:any,expiresAt?:number){return {...s,members:s.members.map(m=>user?.admin?m:{id:m.id,name:m.name}),me:user?{...user,expiresAt}:null,serverNow:Date.now(),authReady:!!(config().url&&config().key),domain:config().domain};}
+export async function GET(req:Request){try{const u=await identity(req);const s=await mutate(()=>{});const me=u?s.members.find(m=>m.id===u.id):null;return json(view(s,me,u?.expiresAt));}catch(e){console.error('read failure',e);return json({error:'场地数据暂不可用，正在重试。'},503);}}
+export async function POST(req:Request){if(!safeOrigin(req))return json({error:'请求来源无效。'},403);try{const u=await identity(req);if(!u)return json({error:'请先使用学校邮箱登录。'},401);const b=await req.json() as any;const s=await mutate(s=>{const actor=s.members.find(m=>m.id===u.id);if(!actor||actor.blocked)throw Error('此账号无法预约，请联系管理员。');applyAction(s,b.action,b,actor);});return json(view(s,s.members.find(m=>m.id===u.id),u.expiresAt));}catch(e){return json({error:e instanceof Error?e.message:'操作失败，请重试。'},400);}}
